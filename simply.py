@@ -1,60 +1,56 @@
 import requests
 from bs4 import BeautifulSoup
+import google.generativeai as genai
 import pandas as pd
 
-# STEP 1: GET HTML
-url = "https://www.contus.com/careers.php"
-response = requests.get(url)
+GEMINI_API_KEY = "AIzaSyAzrD6bL22iYIt9rAukPvodzJfaf8z56gQ"
+JOB_URL = "https://www.contus.com/careers.php"
+EXCEL_NAME = "extracted_jobs.xlsx"
+genai.configure(api_key=GEMINI_API_KEY)
+model = genai.GenerativeModel("gemini-3-flash-preview")
 
-print("Status code:", response.status_code)
+def fetch_html(url):
+    response = requests.get(url, headers={"User-Agent": "Mozilla/5.0"})
+    response.raise_for_status()
+    soup = BeautifulSoup(response.text, "html.parser")
+    for tag in soup(["script", "style", "header", "footer", "nav"]):
+        tag.decompose()
+    return soup.get_text(separator=" ", strip=True)[:10000]
 
-# STEP 2: Extract TEXT
-soup = BeautifulSoup(response.text, "html.parser")
-page_text = soup.get_text(separator="\n", strip=True)
-lines = page_text.split("\n")
+def extract_job_data(text):
+    prompt = f"""
+From the text below, extract the following fields.
+Return ONLY one line in this format:
+job_title | company_name | location | job_description
+Text:
+{text}
+"""
+    response = model.generate_content(prompt)
+    result = response.text.strip()
+    parts = [p.strip() for p in result.split("|")]
+    while len(parts) < 4:
+        parts.append("")
 
-# STEP 3: SEND TEXT TO "MODEL" (simulation)
-job_keywords = [
-    "developer", "engineer", "designer",
-    "architect", "tester", "lead", "manager"
-]
+    job_title, company_name, location, job_description = parts[:4]
+    return {
+        "job_title": job_title,
+        "company_name": company_name,
+        "location": location,
+        "job_description": job_description,
+        "source_url": JOB_URL
+    }
+def save_to_excel(data):
+    df = pd.DataFrame([data])
+    df.to_excel(EXCEL_NAME, index=False)
+    return df
 
-extracted_blocks = []
+def main():
+    text = fetch_html(JOB_URL)
+    job_data = extract_job_data(text)
+    df = save_to_excel(job_data)
 
-for i, line in enumerate(lines):
-    clean_line = line.strip()
+    print("\n✅ Job data saved successfully!")
+    print(df)
 
-    # ✅ FILTER: likely job title rules
-    if (
-        3 <= len(clean_line.split()) <= 6 and     # short title
-        any(k in clean_line.lower() for k in job_keywords)
-    ):
-        description = " ".join(lines[i:i+4])
-
-        extracted_blocks.append({
-            "job_title": clean_line,
-            "description": description
-        })
-
-print("Extracted blocks:", len(extracted_blocks))
-
-# STEP 4: CREATE JOB ATTRIBUTES
-jobs = []
-
-for item in extracted_blocks:
-    jobs.append({
-        "job_title": item["job_title"],
-        "description": item["description"],
-        "company": "CONTUS TECH",
-        "location": "Chennai, India",
-        "source_url": url
-    })
-
-# STEP 5: SAVE TO EXCEL
-df = pd.DataFrame(jobs)
-df.to_excel("contus_jobs_with_description.xlsx", index=False)
-
-print("Excel file created successfully")
-
-
-
+if __name__ == "__main__":
+    main()
