@@ -1,6 +1,6 @@
 from crewai import Agent, Task, Crew, LLM
 
-# 🔑 Add your Gemini API key here
+
 GEMINI_API_KEY = "AIzaSyD5JiSmnLbDvQb5f0UOlUKTjJeqHC_W2P4"
 
 # -------------------------
@@ -62,7 +62,8 @@ crew = Crew(
 # Run Game
 # -------------------------
 if __name__ == "__main__":
-    print("🏴‍☠️ Welcome to Treasure Hunt Game!\n")
+    print(" Welcome to Treasure Hunt Game!\n")
     result = crew.kickoff()
-    print("\n🎮 GAME OUTPUT:\n")
+    print("\n GAME OUTPUT:\n")
+
     print(result)
